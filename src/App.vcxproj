@@ -136,8 +136,6 @@
     <ClInclude Include="easyfft.h" />
     <ClInclude Include="fftwrap.h" />
     <ClInclude Include="gpgpu.h" />
-    <ClInclude Include="gpuBlur2.h" />
-    <ClInclude Include="gpuBlur2_3.h" />
     <ClInclude Include="gpuBlur2_4.h" />
     <ClInclude Include="hdrwrite.h" />
     <ClInclude Include="my_console.h" />
