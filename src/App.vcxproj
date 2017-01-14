@@ -116,6 +116,7 @@
   <ItemGroup>
     <ClCompile Include="cfg1.cpp" />
     <ClCompile Include="ciextra.cpp" />
+    <ClCompile Include="easyfft.cpp" />
     <ClCompile Include="hdrwrite.cpp" />
     <ClCompile Include="main4.cpp" />
     <ClCompile Include="my_console.cpp" />
