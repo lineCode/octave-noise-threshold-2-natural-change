@@ -134,7 +134,6 @@
     <ClInclude Include="cfg1.h" />
     <ClInclude Include="ciextra.h" />
     <ClInclude Include="easyfft.h" />
-    <ClInclude Include="fftwrap.h" />
     <ClInclude Include="gpgpu.h" />
     <ClInclude Include="gpuBlur2_4.h" />
     <ClInclude Include="hdrwrite.h" />

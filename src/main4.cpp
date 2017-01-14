@@ -28,7 +28,6 @@ bool mouseDown_[3];
 bool keys[256];
 gl::Texture::Format gtexfmt;
 float noiseTimeDim = 0.0f;
-typedef FFT_T<float> FFT;
 
 float mouseX, mouseY;
 bool pause;
@@ -281,7 +280,7 @@ struct SApp : AppBasic {
 			auto& val = fftOut(p);
 			//val = Complexf(abs(val), 0.0f); // set phase to 0
 		}
-		FFT::RArray result = ifft(fftOut, FFTW_MEASURE);
+		Array2D<float> result = ifft(fftOut, FFTW_MEASURE);
 		return result;
 	}
 	void bwStyleSmoothen() {

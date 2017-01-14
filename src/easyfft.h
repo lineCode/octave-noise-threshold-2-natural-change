@@ -1,9 +1,7 @@
 #pragma once
 #include <fftw3.h>
 #include "util.h"
-#include "fftwrap.h"
 typedef std::complex<float> Complexf;
-
 
 inline Array2D<Complexf> fft(Array2D<float> in, int flags)
 {
