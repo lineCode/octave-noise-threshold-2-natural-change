@@ -115,7 +115,6 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="cfg1.cpp" />
-    <ClCompile Include="ciextra.cpp" />
     <ClCompile Include="easyfft.cpp" />
     <ClCompile Include="hdrwrite.cpp" />
     <ClCompile Include="main4.cpp" />
@@ -133,7 +132,6 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="cfg1.h" />
-    <ClInclude Include="ciextra.h" />
     <ClInclude Include="easyfft.h" />
     <ClInclude Include="gpgpu.h" />
     <ClInclude Include="gpuBlur2_4.h" />

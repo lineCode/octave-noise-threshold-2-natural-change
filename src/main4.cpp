@@ -1,6 +1,5 @@
 #include "precompiled.h"
 #if 1
-#include "ciextra.h"
 #include "util.h"
 //#include <boost/typeof/typeof.hpp>
 //#include <boost/assign.hpp>

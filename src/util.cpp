@@ -18,6 +18,13 @@ float randFloat()
 	return rand() / (float)RAND_MAX;
 }
 
+void createConsole()
+{
+	AllocConsole();
+	std::fstream* fs = new std::fstream("CONOUT$");
+	std::cout.rdbuf(fs->rdbuf());
+}
+
 void loadFile(std::vector<unsigned char>& buffer, const std::string& filename) //designed for loading files from hard disk in an std::vector
 {
   std::ifstream file(filename.c_str(), std::ios::in|std::ios::binary|std::ios::ate);

@@ -253,3 +253,5 @@ namespace Stopwatch
 #define fortimes(times) for(int i = 0; i < times; i++)
 
 #define FOR(variable, from, to) for(int variable = from; variable <= to; variable++)
+
+void createConsole();
