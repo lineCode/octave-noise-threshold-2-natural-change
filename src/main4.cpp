@@ -258,12 +258,6 @@ struct SApp : AppBasic {
 		}
 		return result;
 	}
-	template<class T>
-	static void normalizeFft(Array2D<T>& arr)
-	{
-		float norm = 1.0 / sqrt((float)arr.area);
-		for(int i=0; i < arr.area; i++) arr(i) *= norm;
-	}
 	Image getOctaveNoiseViaFft(float spectrumExponent) // nice exponents are 0, 1, 2
 	{
 		Array2D<Complexf> fftOut = fft(whiteNoiseState, FFTW_MEASURE);
