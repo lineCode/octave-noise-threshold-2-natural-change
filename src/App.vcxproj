@@ -77,7 +77,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
-      <AdditionalIncludeDirectories>z:\stuff\Dev\misc\cinder_lite\include;C:\Users\Stefan\Desktop\code_\include\lib\src\include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>z:\stuff\Dev\misc\cinder_lite\include</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <PrecompiledHeader>Use</PrecompiledHeader>

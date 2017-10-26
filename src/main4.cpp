@@ -1,5 +1,4 @@
 #include "precompiled.h"
-#if 1
 #include "util.h"
 //#include <boost/typeof/typeof.hpp>
 //#include <boost/assign.hpp>
@@ -25,7 +24,6 @@ Image whiteNoiseState(sx, sy, 0.0f);
 Array2D<Vec2f> velocity(sx, sy, Vec2f::zero());
 bool mouseDown_[3];
 bool keys[256];
-gl::Texture::Format gtexfmt;
 float noiseTimeDim = 0.0f;
 
 float mouseX, mouseY;
@@ -40,9 +38,6 @@ struct SApp : AppBasic {
 		
 	void setup()
 	{
-		//keys2['0']=keys2['1']=keys2['2']=keys2['3']=true;
-		//_MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
-
 		_controlfp(_DN_FLUSH, _MCW_DN);
 
 		area = Rectf(0, 0, (float)sx-1, (float)sy-1).inflated(Vec2f::zero());
@@ -52,7 +47,6 @@ struct SApp : AppBasic {
 		glClampColor(GL_CLAMP_FRAGMENT_COLOR, GL_FALSE);
 		glClampColor(GL_CLAMP_READ_COLOR, GL_FALSE);
 		glClampColor(GL_CLAMP_VERTEX_COLOR, GL_FALSE);
-		gtexfmt.setInternalFormat(hdrFormat);
 		setWindowSize(wsx, wsy);
 
 		forxy(img)
@@ -107,10 +101,6 @@ struct SApp : AppBasic {
 	{
 		direction = getMousePos() - lastm;
 		lastm = getMousePos();
-	}
-	Vec2f reflect(Vec2f const & I, Vec2f const & N)
-	{
-		return I - N * N.dot(I) * 2.0f;
 	}
 	Array2D<float> img3;
 	Array2D<Vec2f> tmpEnergy3;
@@ -193,7 +183,6 @@ struct SApp : AppBasic {
 		
 		renderIt();
 
-		/*Sleep(50);*/my_console::clr();
 		sw::endFrame();
 		cfg1::print();
 		my_console::endFrame();
@@ -209,17 +198,6 @@ struct SApp : AppBasic {
 			}
 		}
 #endif
-	}
-	Array2D<float> getBandlimitedNoise(int blurDiam)
-	{
-		Array2D<float> result = whiteNoiseState.clone();
-		result = gaussianBlur(result, blurDiam);
-		/*for(int i = 0; i < 3; i++)
-		{
-			result = ::blur(result, blurDiam/3, ::zero<float>());
-		}*/
-		result = toRange(result, -1.0f, 1.0f);
-		return result;
 	}
 	void updateBaseNoise()
 	{
@@ -242,21 +220,6 @@ struct SApp : AppBasic {
 		//whiteNoiseAcc = toRange(whiteNoiseAcc, -1.0f, 1.0f);
 		//whiteNoiseChange = toRange(whiteNoiseChange, -1.0f, 1.0f);
 		//whiteNoiseState = toRange(whiteNoiseState, -1.0f, 1.0f);
-	}
-	Image getOctaveNoiseViaSummation()
-	{
-		Image result(sx, sy, 0.0f);
-		float maxOctave = mylog2(sx)-1;
-		cout << "maxOctave = " << maxOctave << endl;
-		for(int octave = 0; octave <= maxOctave; octave++)
-		{
-			auto bln = getBandlimitedNoise(powf(2, maxOctave-octave));
-			float weight = powf(.3f, octave); // should be .5f
-			forxy(result) {
-				result(p) += weight * bln(p);
-			}
-		}
-		return result;
 	}
 	Image getOctaveNoiseViaFft(float spectrumExponent) // nice exponents are 0, 1, 2
 	{
@@ -358,10 +321,6 @@ struct SApp : AppBasic {
 
 };
 
-//#include <lib/define_winmain.h>
-
-
-//CINDER_APP_BASIC(SApp, RendererGl)
 int WINAPI WinMain(HINSTANCE hInstance,HINSTANCE hPrevInstance,LPSTR lpCmdLine,int nCmdShow) {	
 	try{
 		createConsole();
@@ -382,5 +341,3 @@ int WINAPI WinMain(HINSTANCE hInstance,HINSTANCE hPrevInstance,LPSTR lpCmdLine,i
 
 	}
 }
-
-#endif
