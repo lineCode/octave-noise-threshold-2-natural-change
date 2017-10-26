@@ -1,15 +1,8 @@
 #define BOOST_RESULT_OF_USE_DECLTYPE 
 #include <cmath>
-//#include <algorithm>
 #include <iostream>
-//#include <vector>
-//#include <map>
-//#include <ctime>
-//#include <cstdlib>
-//#include <fstream>
-//#include <strstream>
 #include <string>
-//#include <regex>
+#include <cinder/ip/Resize.h>
 #include <complex>
 #include <cinder/app/AppBasic.h>
 #include <cinder/gl/GlslProg.h>
@@ -22,9 +15,9 @@
 #include <boost/foreach.hpp>
 #include <fftw3.h>
 #include <numeric>
+#include <tuple>
+#include <opencv2/imgproc.hpp>
 #define foreach BOOST_FOREACH
 using namespace ci;
 using namespace std;
 using namespace ci::app;
-//using namespace boost::assign;
-//using boost::irange;

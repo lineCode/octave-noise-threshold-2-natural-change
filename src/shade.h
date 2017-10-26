@@ -6,31 +6,6 @@
 void beginRTT(gl::Texture fbotex);
 void endRTT();
 
-template<class T>
-struct ListOf
-{
-	vector<T> data;
-	ListOf(T t)
-	{
-		data.push_back(t);
-	}
-	ListOf<T>& operator()(T t)
-	{
-		data.push_back(t);
-		return *this;
-	}
-	operator vector<T>()
-	{
-		return data;
-	}
-};
-
-template<class T>
-ListOf<T> list_of(T t)
-{
-	return ListOf<T>(t);
-}
-
 struct Str {
 	string s;
 	Str& operator<<(string s2) {
@@ -97,37 +72,8 @@ public:
 	optional<GLenum> _ifmt;
 	float _scaleX, _scaleY;
 };
-gl::Texture shade(vector<gl::Texture> texv, const char* fshader_constChar, ShadeOpts const& opts=ShadeOpts());
-inline gl::Texture shade(vector<gl::Texture> texv, const char* fshader_constChar, float resScale)
+gl::Texture shade(vector<gl::Texture> const& texv, const char* fshader_constChar, ShadeOpts const& opts=ShadeOpts());
+inline gl::Texture shade(vector<gl::Texture> const& texv, const char* fshader_constChar, float resScale)
 {
 	return shade(texv, fshader_constChar, ShadeOpts().scale(resScale));
 }
-namespace shade_h_detail {
-	namespace {
-		gl::Texture::Format get_gtexfmt() { gl::Texture::Format f; f.setInternalFormat(GL_RGB32F); return f; };
-		gl::Texture::Format gtexfmt = get_gtexfmt();
-	}
-}
-#if 0
-inline gl::Texture gtex(Array2D<float> a)
-{
-	gl::Texture tex(a.w, a.h, shade_h_detail::gtexfmt);
-	tex.bind();
-	glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, a.w, a.h, GL_LUMINANCE, GL_FLOAT, a.data);
-	return tex;
-}
-/*gl::Texture gtex(Array2D<Vec2f> a)
-{
-	gl::Texture tex(a.w, a.h, shade_h_detail::gtexfmt);
-	tex.bind();
-	glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, a.w, a.h, GL_RG, GL_FLOAT, a.data);
-	return tex;
-}*/
-inline gl::Texture gtex(Array2D<Vec3f> a)
-{
-	gl::Texture tex(a.w, a.h, shade_h_detail::gtexfmt);
-	tex.bind();
-	glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, a.w, a.h, GL_RGB, GL_FLOAT, a.data);
-	return tex;
-}
-#endif

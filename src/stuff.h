@@ -1,50 +1,9 @@
 #pragma once
 #include "precompiled.h"
 #include "util.h"
+#include "my_console.h"
 
 const GLenum hdrFormat = GL_RGBA16F;
-inline void gotoxy(int x, int y) { 
-    COORD pos = {x, y};
-    HANDLE output = GetStdHandle(STD_OUTPUT_HANDLE);
-    SetConsoleCursorPosition(output, pos);
-}
-inline void clearconsole() {
-    COORD topLeft  = { 0, 0 };
-    HANDLE console = GetStdHandle(STD_OUTPUT_HANDLE);
-    CONSOLE_SCREEN_BUFFER_INFO screen;
-    DWORD written;
-
-    GetConsoleScreenBufferInfo(console, &screen);
-    FillConsoleOutputCharacterA(
-        console, ' ', screen.dwSize.X * screen.dwSize.Y, topLeft, &written
-    );
-    FillConsoleOutputAttribute(
-        console, FOREGROUND_GREEN | FOREGROUND_RED | FOREGROUND_BLUE,
-        screen.dwSize.X * screen.dwSize.Y, topLeft, &written
-    );
-    SetConsoleCursorPosition(console, topLeft);
-}
-////////////////
-#if 0
-template<class Func>
-struct ToBind
-{
-	/*function<Func> f;
-	ToBind(Func f) : f(f){
-	}*/
-};
-
-template<class Func>
-ToBind<Func> toBind(Func func) {
-	throw 0;
-	//return ToBind<Func>(func);
-}
-
-void test()
-{
-	toBind(powf);
-}
-#endif
 
 template<class F>
 struct Transformed {
@@ -123,38 +82,38 @@ struct WrapModes {
 	};
 	typedef GetWrapped DefaultImpl;
 };
-template<class T>
-Array2D<T> blur(Array2D<T> const& src, int r, T zero = T())
+template<class T, class FetchFunc>
+Array2D<T> blur(Array2D<T>& src, int r, T zero = T())
 {
-	Array2D<T> newImg(sx, sy);
+	Array2D<T> newImg(src.w, src.h);
 	float divide = pow(2.0f * r + 1.0f, 2.0f);
-	for(int x = 0; x < sx; x++)
+	for(int x = 0; x < src.w; x++)
 	{
 		T sum = zero;
 		for(int y = -r; y <= r; y++)
 		{
-			sum += get_clamped(src, x, y);
+			sum += FetchFunc::fetch(src, x, y);
 		}
-		for(int y = 0; y < sy; y++)
+		for(int y = 0; y < src.h; y++)
 		{
 			newImg(x, y) = sum;
-			sum -= get_clamped(src, x, y - r);
-			sum += get_clamped(src, x, y + r + 1);
+			sum -= FetchFunc::fetch(src, x, y - r);
+			sum += FetchFunc::fetch(src, x, y + r + 1);
 		}
 	}
-	Array2D<T> newImg2(sx, sy);
-	for(int y = 0; y < sy; y++)
+	Array2D<T> newImg2(src.w, src.h);
+	for(int y = 0; y < src.h; y++)
 	{
 		T sum = zero;
 		for(int x = -r; x <= r; x++)
 		{
-			sum += get_clamped(newImg, x, y);
+			sum += FetchFunc::fetch(newImg, x, y);
 		}
-		for(int x = 0; x < sx; x++)
+		for(int x = 0; x < src.w; x++)
 		{
 			newImg2(x, y) = sum;
-			sum -= get_clamped(newImg, x - r, y);
-			sum += get_clamped(newImg, x + r + 1, y);
+			sum -= FetchFunc::fetch(newImg, x - r, y);
+			sum += FetchFunc::fetch(newImg, x + r + 1, y);
 		}
 	}
 	forxy(img)
@@ -162,6 +121,103 @@ Array2D<T> blur(Array2D<T> const& src, int r, T zero = T())
 	return newImg2;
 }
 template<class T>
+Array2D<T> blur(Array2D<T>& src, int r, T zero = T())
+{
+	return blur<T, WrapModes::DefaultImpl>(src, r, zero);
+}
+template<class T, class FetchFunc>
+void blurFaster_helper1d(Array2D<T>& arr, int r, Vec2i startXY, Vec2i endXY, Vec2i stepXY)
+{
+	// init stuff
+	T zero = ::zero<T>();
+	int d = 2 * r + 1;
+	float normMul = 1.0f / float(d);
+	
+	// setup buffer
+	struct BufferEntry
+	{
+		T val;
+		BufferEntry* next;
+	};
+	vector<BufferEntry> buffer(d);
+	for(int i = 0; i < buffer.size(); i++)
+	{
+		if(i == buffer.size() - 1)
+		{
+			buffer[i].next = &buffer[0];
+			continue;
+		}
+		buffer[i].next = &buffer[i+1];
+	}
+	
+	// fill beginning of buffer
+	BufferEntry* b = &buffer[0];
+	for(int i = -r; i <= r; i++)
+	{
+		Vec2i fetchPos = startXY + i * stepXY;
+		b->val = FetchFunc::fetch(arr, fetchPos.x, fetchPos.y);
+		b = b->next;
+	}
+	
+	// init sum
+	T sum=zero;
+	foreach(auto& entry, buffer)
+	{
+		sum += entry.val;
+	}
+	
+	// do main work
+	BufferEntry* oldest = &buffer[0];
+	BufferEntry* newest = &buffer[buffer.size() - 1];
+	//const T* startPtr = &arr(startXY);
+	//int ptrStep = &arr(stepXY) - &arr(0, 0);
+	//T* outP = startPtr - r * ptrStep;
+	Vec2i fetchOffset = stepXY * (r + 1);
+	Vec2i outP;
+	for(outP = startXY; outP + fetchOffset != endXY; outP += stepXY) {
+		arr(outP) = sum * normMul;
+		sum -= oldest->val;
+		oldest = oldest->next;
+		newest = newest->next;
+		Vec2i fetchPos = outP + fetchOffset;
+		newest->val = WrapModes::NoWrap::fetch(arr, fetchPos.x, fetchPos.y);
+		sum += newest->val;
+	}
+
+	// do last part
+	for(/*outP already initted*/; outP != endXY; outP += stepXY) {
+		arr(outP) = sum * normMul;
+		sum -= oldest->val;
+		oldest = oldest->next;
+		newest = newest->next;
+		Vec2i fetchPos = outP + fetchOffset;
+		newest->val = FetchFunc::fetch(arr, fetchPos.x, fetchPos.y);
+		sum += newest->val;
+	}
+}
+template<class T, class FetchFunc>
+Array2D<T> blurFaster(Array2D<T>& src, int r, T zero = T())
+{
+	auto newImg = src.clone();
+	// blur columns
+	for(int x = 0; x < src.w; x++)
+	{
+		blurFaster_helper1d<T, FetchFunc>(newImg, r,
+			/*startXY*/Vec2i(x, 0),
+			/*endXY*/Vec2i(x, src.h),
+			/*stepXY*/Vec2i(0, 1));
+	}
+	// blur rows
+	for(int y = 0; y < src.h; y++)
+	{
+		blurFaster_helper1d<T, FetchFunc>(newImg, r,
+			/*startXY*/Vec2i(0, y),
+			/*endXY*/Vec2i(src.w, y),
+			/*stepXY*/Vec2i(1, 0));
+	}
+	return newImg;
+}
+/*template<class T>
 Array2D<T> blur2(Array2D<T> const& src, int r)
 {
 	T zero = ::zero<T>();
@@ -225,7 +281,7 @@ Array2D<T> blur2(Array2D<T> const& src, int r)
 	forxy(img)
 		newImg2(p) *= mul;
 	return newImg2;
-}
+}*/
 template<class T>
 void aaPoint_i2(Array2D<T>& dst, Vec2i p, T value)
 {
@@ -326,33 +382,38 @@ void aaPoint_i(Array2D<T>& dst, int x, int y, T value)
 {
 	dst.wr(x, y) += value;
 }
-template<class T>
-void aaPoint_wrapZeros(Array2D<T>& dst, Vec2f p, T value)
-{
-	aaPoint_wrapZeros(dst, p.x, p.y, value);
-}
-template<class T>
-void aaPoint_wrapZeros(Array2D<T>& dst, float x, float y, T value)
-{
-	int ix = x, iy = y;
-	float fx = ix, fy = iy;
-	if(x < 0.0f && fx != x) { fx--; ix--; }
-	if(y < 0.0f && fy != y) { fy--; iy--; }
-	float fractx = x - fx;
-	float fracty = y - fy;
-	float fractx1 = 1.0 - fractx;
-	float fracty1 = 1.0 - fracty;
-	get_wrapZeros(dst, ix, iy) += (fractx1 * fracty1) * value;
-	get_wrapZeros(dst, ix, iy+1) += (fractx1 * fracty) * value;
-	get_wrapZeros(dst, ix+1, iy) += (fractx * fracty1) * value;
-	get_wrapZeros(dst, ix+1, iy+1) += (fractx * fracty) * value;
-}
-template<class T>
+/// BEGIN CODE FOR BACKWARD COMPATIBILITY
+
+	template<class T>
+	void aaPoint_wrapZeros(Array2D<T>& dst, Vec2f p, T value)
+	{
+		aaPoint_wrapZeros(dst, p.x, p.y, value);
+	}
+	template<class T>
+	void aaPoint_wrapZeros(Array2D<T>& dst, float x, float y, T value)
+	{
+		int ix = x, iy = y;
+		float fx = ix, fy = iy;
+		if(x < 0.0f && fx != x) { fx--; ix--; }
+		if(y < 0.0f && fy != y) { fy--; iy--; }
+		float fractx = x - fx;
+		float fracty = y - fy;
+		float fractx1 = 1.0 - fractx;
+		float fracty1 = 1.0 - fracty;
+		get_wrapZeros(dst, ix, iy) += (fractx1 * fracty1) * value;
+		get_wrapZeros(dst, ix, iy+1) += (fractx1 * fracty) * value;
+		get_wrapZeros(dst, ix+1, iy) += (fractx * fracty1) * value;
+		get_wrapZeros(dst, ix+1, iy+1) += (fractx * fracty) * value;
+	}
+
+/// END CODE FOR BACKWARD COMPATIBILITY
+
+template<class T, class FetchFunc>
 void aaPoint(Array2D<T>& dst, Vec2f p, T value)
 {
-	aaPoint(dst, p.x, p.y, value);
+	aaPoint<T, FetchFunc>(dst, p.x, p.y, value);
 }
-template<class T>
+template<class T, class FetchFunc>
 void aaPoint(Array2D<T>& dst, float x, float y, T value)
 {
 	int ix = x, iy = y;
@@ -363,17 +424,27 @@ void aaPoint(Array2D<T>& dst, float x, float y, T value)
 	float fracty = y - fy;
 	float fractx1 = 1.0 - fractx;
 	float fracty1 = 1.0 - fracty;
-	dst.wr(ix, iy) += (fractx1 * fracty1) * value;
-	dst.wr(ix, iy+1) += (fractx1 * fracty) * value;
-	dst.wr(ix+1, iy) += (fractx * fracty1) * value;
-	dst.wr(ix+1, iy+1) += (fractx * fracty) * value;
+	FetchFunc::fetch(dst, ix, iy) += (fractx1 * fracty1) * value;
+	FetchFunc::fetch(dst, ix, iy+1) += (fractx1 * fracty) * value;
+	FetchFunc::fetch(dst, ix+1, iy) += (fractx * fracty1) * value;
+	FetchFunc::fetch(dst, ix+1, iy+1) += (fractx * fracty) * value;
 }
 template<class T>
+void aaPoint(Array2D<T>& dst, float x, float y, T value)
+{
+	aaPoint<T, WrapModes::DefaultImpl>(dst, p.x, p.y, value);
+}
+template<class T>
+void aaPoint(Array2D<T>& dst, Vec2f p, T value)
+{
+	aaPoint<T, WrapModes::DefaultImpl>(dst, p, value);
+}
+template<class T, class FetchFunc>
 T getBilinear(Array2D<T> src, Vec2f p)
 {
-	return getBilinear(src, p.x, p.y);
+	return getBilinear<T, FetchFunc>(src, p.x, p.y);
 }
-template<class T>
+template<class T, class FetchFunc>
 T getBilinear(Array2D<T> src, float x, float y)
 {
 	int ix = x, iy = y;
@@ -383,9 +454,19 @@ T getBilinear(Array2D<T> src, float x, float y)
 	float fractx = x - fx;
 	float fracty = y - fy;
 	return lerp(
-		lerp(getWrapped(src, ix, iy), getWrapped(src, ix + 1, iy), fractx),
-		lerp(getWrapped(src, ix, iy + 1), getWrapped(src, ix + 1, iy + 1), fractx),
+		lerp(FetchFunc::fetch(src, ix, iy), FetchFunc::fetch(src, ix + 1, iy), fractx),
+		lerp(FetchFunc::fetch(src, ix, iy + 1), FetchFunc::fetch(src, ix + 1, iy + 1), fractx),
 		fracty);
+}
+template<class T>
+T getBilinear(Array2D<T> src, float x, float y)
+{
+	return getBilinear<T, WrapModes::DefaultImpl>(src, x, y);
+}
+template<class T>
+T getBilinear(Array2D<T> src, Vec2f p)
+{
+	return getBilinear<T, WrapModes::DefaultImpl>(src, p);
 }
 
 inline gl::Texture gtex(Array2D<float> a)
@@ -425,19 +506,6 @@ inline Array2D<float> to01(Array2D<float> a) {
 	}
 	return b;
 }
-inline Array2D<float> toRange(Array2D<float> inArr, float outMin, float outMax) {
-	auto inMin = *std::min_element(inArr.begin(), inArr.end());
-	auto inMax = *std::max_element(inArr.begin(), inArr.end());
-	auto result = inArr.clone();
-	forxy(result) {
-		auto& val = result(p);
-		val -= inMin;
-		val /= (inMax - inMin);
-		// now val is in [0, 1], can use it to lerp.
-		val = lerp(outMin, outMax, val);
-	}
-	return result;
-}
 template<class T>
 T& zero() {
 	static T val=T()*0.0f;
@@ -468,8 +536,8 @@ T const& get_clamped(Array2D<T> const& src, int x, int y)
 template<class T>
 Array2D<T> gauss3(Array2D<T> src) {
 	T zero=::zero<T>();
-	Array2D<T> dst1(sx, sy);
-	Array2D<T> dst2(sx, sy);
+	Array2D<T> dst1(src.w, src.h);
+	Array2D<T> dst2(src.w, src.h);
 	forxy(dst1)
 		dst1(p) = .25f * (2 * get_clamped(src, p.x, p.y) + get_clamped(src, p.x-1, p.y) + get_clamped(src, p.x+1, p.y));
 	forxy(dst2)
@@ -544,11 +612,12 @@ Vec2f gradient_i2(Array2D<T> src, Vec2i p)
 }
 
 inline void mm(Array2D<float> arr, string desc="") {
+	std::stringstream prepend;
 	if(desc!="") {
-		cout << "[" << desc << "] ";
+		 prepend << "[" << desc << "] ";
 	}
-	cout<<"min: " << *std::min_element(arr.begin(),arr.end()) << ", ";
-	cout<<"max: " << *std::max_element(arr.begin(),arr.end()) << endl;
+	qDebug()<<prepend.str()<<"min: " << *std::min_element(arr.begin(),arr.end()) << ", "
+		<<"max: " << *std::max_element(arr.begin(),arr.end());
 }
 //get_wrapZeros
 template<class T>
@@ -569,57 +638,81 @@ T const& get_wrapZeros(Array2D<T> const& src, int x, int y)
 	}
 	return src(x, y);
 }
-template<class T>
+template<class T, class FetchFunc>
 Vec2f gradient_i(Array2D<T> src, Vec2i p)
 {
 	//if(p.x<1||p.y<1||p.x>=src.w-1||p.y>=src.h-1)
 	//	return Vec2f::zero();
 	Vec2f gradient;
-	gradient.x = (get_wrapZeros(src,p.x + 1, p.y) - get_wrapZeros(src, p.x - 1, p.y)) / 2.0f;
-	gradient.y = (get_wrapZeros(src,p.x, p.y + 1) - get_wrapZeros(src, p.x, p.y - 1)) / 2.0f;
+	gradient.x = (FetchFunc::fetch(src,p.x + 1, p.y) - FetchFunc::fetch(src, p.x - 1, p.y)) / 2.0f;
+	gradient.y = (FetchFunc::fetch(src,p.x, p.y + 1) - FetchFunc::fetch(src, p.x, p.y - 1)) / 2.0f;
 	return gradient;
+}
+template<class T, class FetchFunc>
+Vec2f gradient_i_nodiv(Array2D<T> src, Vec2i p)
+{
+	//if(p.x<1||p.y<1||p.x>=src.w-1||p.y>=src.h-1)
+	//	return Vec2f::zero();
+	Vec2f gradient;
+	gradient.x = FetchFunc::fetch(src,p.x + 1, p.y) - FetchFunc::fetch(src, p.x - 1, p.y);
+	gradient.y = FetchFunc::fetch(src,p.x, p.y + 1) - FetchFunc::fetch(src, p.x, p.y - 1);
+	return gradient;
+}
+template<class T, class FetchFunc>
+Array2D<Vec2f> get_gradients(Array2D<T> src)
+{
+	auto src2=src.clone();
+	forxy(src2)
+		src2(p) /= 2.0f;
+	Array2D<Vec2f> gradients(src.w, src.h);
+	for(int x = 0; x < src.w; x++)
+	{
+		gradients(x, 0) = gradient_i_nodiv<T, FetchFunc>(src2, Vec2i(x, 0));
+		gradients(x, src.h-1) = gradient_i_nodiv<T, FetchFunc>(src2, Vec2i(x, src.h-1));
+	}
+	for(int y = 1; y < src.h-1; y++)
+	{
+		gradients(0, y) = gradient_i_nodiv<T, FetchFunc>(src2, Vec2i(0, y));
+		gradients(src.w-1, y) = gradient_i_nodiv<T, FetchFunc>(src2, Vec2i(src.w-1, y));
+	}
+	for(int x=1; x < src.w-1; x++)
+	{
+		for(int y=1; y < src.h-1; y++)
+		{
+			gradients(x, y) = gradient_i_nodiv<T, WrapModes::NoWrap>(src2, Vec2i(x, y));
+		}
+	}
+	return gradients;
 }
 template<class T>
 Array2D<Vec2f> get_gradients(Array2D<T> src)
 {
-	Array2D<Vec2f> gradients(sx, sy);
-	forxy(gradients)
-	{
-		gradients(p) = gradient_i(img, p);
-		//gradients(p) = Vec2f(-gradients(p).y, gradients(p).x);
-	}
-	return gradients;
+	return get_gradients<T, WrapModes::DefaultImpl>(src);
 }
 
 inline gl::Texture maketex(int w, int h, GLint internalFormat) {
 	gl::Texture::Format fmt; fmt.setInternalFormat(internalFormat); return gl::Texture(NULL, GL_RGBA, w, h, fmt);
-}
-inline gl::Texture maketex(Array2D<Vec3f> arr, GLint internalFormat) {
-	gl::Texture::Format fmt; fmt.setInternalFormat(internalFormat);
-	auto tex = gl::Texture(arr.w, arr.h, fmt);
-	tex.bind();
-	glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, arr.w, arr.h, GL_RGB, GL_FLOAT, arr.data);
-	return tex;
-}
-inline gl::Texture maketex(Array2D<Vec2f> arr, GLint internalFormat) {
-	gl::Texture::Format fmt; fmt.setInternalFormat(internalFormat);
-	auto tex = gl::Texture(arr.w, arr.h, fmt);
-	tex.bind();
-	glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, arr.w, arr.h, GL_RG, GL_FLOAT, arr.data);
-	return tex;
-}
-inline gl::Texture maketex(Array2D<float> arr, GLint internalFormat) {
-	gl::Texture::Format fmt; fmt.setInternalFormat(internalFormat);
-	auto tex = gl::Texture(arr.w, arr.h, fmt);
-	tex.bind();
-	glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, arr.w, arr.h, GL_LUMINANCE, GL_FLOAT, arr.data);
-	return tex;
 }
 
 template<class T>
 Array2D<T> gettexdata(gl::Texture tex, GLenum format, GLenum type) {
 	return gettexdata<T>(tex, format, type, tex.getBounds());
 }
+
+inline void checkGLError(string place)
+{
+	GLenum errCode;
+	if ((errCode = glGetError()) != GL_NO_ERROR) 
+	{
+		qDebug()<<"GL error "<<hex<<errCode<<dec<< " at " << place;
+	}
+	else {
+		qDebug() << "NO error at " << place;
+	}
+}
+#define MY_STRINGIZE_DETAIL(x) #x
+#define MY_STRINGIZE(x) MY_STRINGIZE_DETAIL(x)
+#define CHECK_GL_ERROR() checkGLError(__FILE__ ": " MY_STRINGIZE(__LINE__))
 
 template<class T>
 Array2D<T> gettexdata(gl::Texture tex, GLenum format, GLenum type, ci::Area area) {
@@ -633,43 +726,25 @@ Array2D<T> gettexdata(gl::Texture tex, GLenum format, GLenum type, ci::Area area
 	GLenum errCode;
 	if ((errCode = glGetError()) != GL_NO_ERROR) 
 	{
-		cout<<"ERROR"<<errCode<<endl;
+		qDebug() <<"ERROR"<<errCode;
 	}
 	return data;
 }
-inline float sq(float f) {
-	return f * f;
-}
-inline vector<float> getGaussianKernel(int ksize) { // ksize must be odd
-	float sigma = 0.3*((ksize-1)*0.5 - 1) + 0.8;
-	vector<float> result;
-	int r=ksize/2;
-	float sum=0.0f;
-	for(int i=-r;i<=r;i++) {
-		float exponent = -(i*i/sq(2*sigma));
-		float val = exp(exponent);
-		sum += val;
-		result.push_back(val);
-	}
-	for(int i=0; i<result.size(); i++) {
-		result[i] /= sum;
-	}
-	return result;
-}
-template<class T,class FetchFunc>
-Array2D<T> gaussianBlur(Array2D<T> src, int ksize) { // ksize must be odd. fastpath is for r%3==0.
-	int r = ksize / 2;
-	if(r % 3 == 0)
-	{
-		auto blurred = src;
-		for(int i = 0; i < 3; i++)
-		{
-			blurred = blur(blurred, r / 3, ::zero<T>());
-		}
-		return blurred;
-	}
 
-	auto kernel = getGaussianKernel(ksize);
+float sq(float f);
+
+vector<float> getGaussianKernel(int ksize, float sigma); // ksize must be odd
+
+float sigmaFromKsize(float ksize);
+
+float ksizeFromSigma(float sigma);
+
+// KS means it has ksize and sigma args
+template<class T,class FetchFunc>
+Array2D<T> separableConvolve(Array2D<T> src, vector<float>& kernel) {
+	int ksize = kernel.size();
+	int r = ksize / 2;
+	
 	T zero=::zero<T>();
 	Array2D<T> dst1(src.w, src.h);
 	Array2D<T> dst2(src.w, src.h);
@@ -743,9 +818,46 @@ Array2D<T> gaussianBlur(Array2D<T> src, int ksize) { // ksize must be odd. fastp
 	}
 	return dst2;
 }
+// one-arg version for backward compatibility
+template<class T,class FetchFunc>
+Array2D<T> gaussianBlur(Array2D<T> src, int ksize) { // ksize must be odd.
+	auto kernel = getGaussianKernel(ksize, sigmaFromKsize(ksize));
+	return separableConvolve<T, FetchFunc>(src, kernel);
+}
 template<class T>
 Array2D<T> gaussianBlur(Array2D<T> src, int ksize) {
 	return gaussianBlur<T, WrapModes::DefaultImpl>(src, ksize);
+}
+struct denormal_check {
+	static int num;
+	static void begin_frame() {
+		num = 0;
+	}
+	static void check(float f) {
+		if ( f != 0 && fabsf( f ) < numeric_limits<float>::min() ) {
+			// it's denormalized
+			num++;
+		}
+	}
+	static void end_frame() {
+		qDebug() << "denormals detected: " << num;
+	}
+};
+
+inline vector<Array2D<float> > split(Array2D<Vec3f> arr) {
+	Array2D<float> r(arr.w, arr.h);
+	Array2D<float> g(arr.w, arr.h);
+	Array2D<float> b(arr.w, arr.h);
+	forxy(arr) {
+		r(p) = arr(p).x;
+		g(p) = arr(p).y;
+		b(p) = arr(p).z;
+	}
+	vector<Array2D<float> > result;
+	result.push_back(r);
+	result.push_back(g);
+	result.push_back(b);
+	return result;
 }
 inline void setWrapBlack(gl::Texture tex) {
 	tex.bind();
@@ -754,41 +866,49 @@ inline void setWrapBlack(gl::Texture tex) {
 	tex.setWrap(GL_CLAMP_TO_BORDER, GL_CLAMP_TO_BORDER);
 }
 
-// http://stackoverflow.com/a/994647/122687
-static unsigned int mylog2 (unsigned int val) {
-	if (val == 0) return UINT_MAX;
-	if (val == 1) return 0;
-	unsigned int ret = 0;
-	while (val > 1) {
-		val >>= 1;
-		ret++;
+inline Array2D<Vec3f> merge(vector<Array2D<float> > channels) {
+	Array2D<float>& r = channels[0];
+	Array2D<float>& g = channels[1];
+	Array2D<float>& b = channels[2];
+	Array2D<Vec3f> result(r.w, r.h);
+	forxy(result) {
+		result(p) = Vec3f(r(p), g(p), b(p));
 	}
-	return ret;
+	return result;
 }
 
-// nullTerminatedLoadFile
-inline string ntLoadFile(string filename)
-{
-	vector<unsigned char> vec;
-	loadFile(vec, filename);
-	return string(vec.begin(), vec.end());
-}
-// http://www.asawicki.info/news_1301_reflect_and_refract_functions.html
-inline Vec3f refract(const Vec3f &I, const Vec3f &N, float eta)
-{
-	float N_dot_I = ci::dot(N, I);
-	float k = 1.f - eta * eta * (1.f - N_dot_I * N_dot_I);
-	if (k < 0.f)
-		return Vec3f(0.f, 0.f, 0.f);
-	else
-		return eta * I - (eta * N_dot_I + sqrtf(k)) * N;
+inline Array2D<float> div(Array2D<Vec2f> a) {
+	return ::map(a, [&](Vec2i p) -> float {
+		auto dGx_dx = (a.wr(p.x+1,p.y).x-a.wr(p.x-1,p.y).x) / 2.0f;
+		auto dGy_dy = (a.wr(p.x,p.y+1).y-a.wr(p.x,p.y-1).y) / 2.0f;
+		return dGx_dx + dGy_dy;
+	});
 }
 
-template<class T>
-inline Vec2f gradient_f(Array2D<T> src, Vec2f p)
-{
-	Vec2f gradient;
-	gradient.x = getBilinear(src, p.x + 1, p.y) - getBilinear(src, p.x - 1, p.y);
-	gradient.y = getBilinear(src, p.x, p.y + 1) - getBilinear(src, p.x, p.y - 1);
-	return gradient;
+class FileCache {
+public:
+	static string get(string filename);
+private:
+	static std::map<string,string> db;
+};
+
+Array2D<Vec3f> resize(Array2D<Vec3f> src, Vec2i dstSize, const ci::FilterBase &filter);
+Array2D<float> resize(Array2D<float> src, Vec2i dstSize, const ci::FilterBase &filter);
+
+
+inline Array2D<Vec2f> gradientForward(Array2D<float> a) {
+	return ::map(a, [&](Vec2i p) -> Vec2f {
+		return Vec2f(
+			(a.wr(p.x + 1, p.y) - a.wr(p.x, p.y)) / 1.0f,
+			(a.wr(p.x, p.y + 1) - a.wr(p.x, p.y)) / 1.0f
+		);
+	});
+}
+
+inline Array2D<float> divBackward(Array2D<Vec2f> a) {
+	return ::map(a, [&](Vec2i p) -> float {
+		auto dGx_dx = (a.wr(p.x, p.y).x - a.wr(p.x - 1, p.y).x);
+		auto dGy_dy = (a.wr(p.x, p.y).y - a.wr(p.x, p.y - 1).y);
+		return dGx_dx + dGy_dy;
+	});
 }

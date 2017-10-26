@@ -115,10 +115,14 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="cfg1.cpp" />
+    <ClCompile Include="colorspaces.cpp" />
     <ClCompile Include="easyfft.cpp" />
+    <ClCompile Include="gpuBlur2_4.cpp" />
     <ClCompile Include="hdrwrite.cpp" />
     <ClCompile Include="main4.cpp" />
+    <ClCompile Include="mainfunc_impl.cpp" />
     <ClCompile Include="my_console.cpp" />
+    <ClCompile Include="PerlinCalculator2D.cpp" />
     <ClCompile Include="precompiled.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeaderFile Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">precompiled.h</PrecompiledHeaderFile>
@@ -127,25 +131,34 @@
     </ClCompile>
     <ClCompile Include="shade.cpp" />
     <ClCompile Include="simplexnoise.cpp" />
+    <ClCompile Include="stefanapp.cpp" />
+    <ClCompile Include="stuff.cpp" />
     <ClCompile Include="sw.cpp" />
     <ClCompile Include="util.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="bicubic.h" />
     <ClInclude Include="cfg1.h" />
+    <ClInclude Include="colorspaces.h" />
     <ClInclude Include="easyfft.h" />
     <ClInclude Include="gpgpu.h" />
     <ClInclude Include="gpuBlur2_4.h" />
     <ClInclude Include="hdrwrite.h" />
+    <ClInclude Include="mainfunc_impl.h" />
     <ClInclude Include="my_console.h" />
+    <ClInclude Include="PerlinCalculator2D.h" />
     <ClInclude Include="precompiled.h" />
     <ClInclude Include="shade.h" />
     <ClInclude Include="simplexnoise.h" />
+    <ClInclude Include="stefanapp.h" />
     <ClInclude Include="stuff.h" />
     <ClInclude Include="sw.h" />
     <ClInclude Include="util.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="hcl_lib.fs" />
+    <None Include="heightmap.fs" />
+    <None Include="stuff.fs" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

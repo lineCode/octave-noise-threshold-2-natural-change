@@ -1,6 +1,7 @@
 #include "precompiled.h"
 #include "shade.h"
 #include "util.h"
+#include "my_console.h"
 
 void beginRTT(gl::Texture fbotex)
 {
@@ -24,18 +25,7 @@ gl::Texture Shade::run() {
 	return shade(_texv, _src.c_str(), opts);
 }
 
-string removeEndlines(string s)
-{
-	string s2 = s;
-	FOR(i, 0, s2.size() - 1) {
-		char& c = s2[i];
-		if(c == '\n' || c == '\r')
-			c = ' ';
-	}
-	return s2;
-}
-
-map<string, float> globaldict;
+std::map<string, float> globaldict;
 void globaldict_default(string s, float f) {
 	if(globaldict.find(s) == globaldict.end())
 	{
@@ -43,28 +33,19 @@ void globaldict_default(string s, float f) {
 	}
 }
 
-gl::Texture shade(vector<gl::Texture> texv, const char* fshader_constChar, ShadeOpts const& opts)
-{
-	const string fshader0(fshader_constChar);
-	/*if(fshader0.find('\t') == string::npos)
-		throw 0;*/
-	string fshader;
-	FOR(i, 0, fshader0.size() - 1) {
-		//if(fshader0[i] == '\t' && (i == 0 || fshader0[i-1] != '\t'))
-		//	fshader += '\n';
-		fshader += fshader0[i];
-	}
+auto samplerSuffix = [&](int i) -> string {
+	return (i == 0) ? "" : ToString(1 + i);
+};
 
+auto samplerName = [&](int i) -> string {
+	return "tex" + samplerSuffix(i);
+};
+
+std::string getCompleteFshader(vector<gl::Texture> const& texv, std::string const& fshader) {
 	auto texIndex = [&](gl::Texture t) {
 		return ToString(
 			1 + (std::find(texv.begin(), texv.end(), t) - texv.begin())
 			);
-	};
-	auto samplerSuffix = [&](int i) -> string {
-		return (i == 0) ? "" : ToString(1 + i);
-	};
-	auto samplerName = [&](int i) -> string {
-		return "tex" + samplerSuffix(i);
 	};
 	string uniformDeclarations;
 	FOR(i,0,texv.size()-1)
@@ -77,7 +58,6 @@ gl::Texture shade(vector<gl::Texture> texv, const char* fshader_constChar, Shade
 	{
 		uniformDeclarations += "uniform float " + p.first + ";\n";
 	}
-	//cout << "sampler2Ddeclarations: " << sampler2Ddeclarations << endl;
 	string intro =
 		Str()
 		<< "#version 130"
@@ -132,12 +112,18 @@ gl::Texture shade(vector<gl::Texture> texv, const char* fshader_constChar, Shade
 		<< "	shade();"
 		<< "	gl_FragColor.rgb = _out;"
 		<< "}";
-	string completeFshader = intro + fshader + outro;
-	string completeFshader_noEndlines = removeEndlines(intro) + fshader + outro;
-	static map<string, gl::GlslProg> shaders;
+	return intro + fshader + outro;
+}
+
+gl::Texture shade(vector<gl::Texture> const& texv, const char* fshader_constChar, ShadeOpts const& opts)
+{
+	const string fshader(fshader_constChar);
+
+	static std::map<string, gl::GlslProg> shaders;
 	gl::GlslProg shader;
-	if(shaders.find(completeFshader) == shaders.end())
+	if(shaders.find(fshader) == shaders.end())
 	{
+		std::string completeFshader = getCompleteFshader(texv, fshader);
 		try{
 			shader = gl::GlslProg(
 				Str()
@@ -148,10 +134,9 @@ gl::Texture shade(vector<gl::Texture> texv, const char* fshader_constChar, Shade
 				<< "	gl_Position = ftransform();"
 				<< "	tc=gl_MultiTexCoord0.xy;"
 				<< "}",
-				completeFshader/*_noEndlines*/.c_str()
+				completeFshader.c_str()
 				);
-			shaders[completeFshader] = shader;
-			cout << "compiling" << endl;
+			shaders[fshader] = shader;
 		} catch(gl::GlslProgCompileExc const& e) {
 			cout << "gl::GlslProgCompileExc: " << e.what() << endl;
 			cout << "source:" << endl;
@@ -159,7 +144,7 @@ gl::Texture shade(vector<gl::Texture> texv, const char* fshader_constChar, Shade
 			throw;
 		}
 	} else {
-		shader = shaders[completeFshader];
+		shader = shaders[fshader];
 	}
 	auto tex0 = texv[0];
 	shader.bind();

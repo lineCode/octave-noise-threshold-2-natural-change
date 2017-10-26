@@ -13,6 +13,7 @@
 #include <float.h>
 #include "simplexnoise.h"
 #include "easyfft.h"
+#include "stefanapp.h"
 
 typedef Array2D<float> Image;
 int wsx=800, wsy = 800 * (800.0f / 1280.0f);
@@ -22,25 +23,17 @@ int sy = wsy / scale;
 Image img(sx, sy);
 Image whiteNoiseState(sx, sy, 0.0f);
 Array2D<Vec2f> velocity(sx, sy, Vec2f::zero());
-bool mouseDown_[3];
-bool keys[256];
 float noiseTimeDim = 0.0f;
 
-float mouseX, mouseY;
 bool pause;
-bool keys2[256];
 
 void updateConfig() {
 }
 
 struct SApp : AppBasic {
-	Rectf area;
-		
 	void setup()
 	{
 		_controlfp(_DN_FLUSH, _MCW_DN);
-
-		area = Rectf(0, 0, (float)sx-1, (float)sy-1).inflated(Vec2f::zero());
 
 		createConsole();
 		
@@ -124,21 +117,6 @@ struct SApp : AppBasic {
 		}
 	}
 
-	void moveMatter(Vec2i p, Vec2f p2, float movedMatter, Vec2f transferredEnergy, Vec2f vec2)
-	{
-		aaPoint_i2(img3, p, -movedMatter);
-		aaPoint2(img3, p2, movedMatter);
-		
-		aaPoint_i2(tmpEnergy3, p, -transferredEnergy);
-		if(area.contains(Vec2f(p) + vec2))
-			aaPoint2(tmpEnergy3, p2, transferredEnergy);
-	}
-
-	/*string tmsg;
-	void tnext(string msg)
-	{
-		tmsg = msg;
-	}*/
 	void draw()
 	{
 		my_console::beginFrame();
