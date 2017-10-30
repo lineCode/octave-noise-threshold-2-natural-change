@@ -157,7 +157,6 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="hcl_lib.fs" />
-    <None Include="heightmap.fs" />
     <None Include="stuff.fs" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
