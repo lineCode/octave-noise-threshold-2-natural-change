@@ -46,8 +46,6 @@ struct SApp : AppBasic {
 		{
 			img(p) = ci::randFloat(); // NEWCODE
 		}
-
-		tmpEnergy = Array2D<Vec2f>(sx, sy);
 	}
 	void keyDown(KeyEvent e)
 	{
@@ -80,49 +78,10 @@ struct SApp : AppBasic {
 	{
 		mouseDown_[e.isLeft() ? 0 : e.isMiddle() ? 1 : 2] = false;
 	}
-	Vec2f direction;
-	Vec2f lastm;
-	void mouseDrag(MouseEvent e)
-	{
-		mm();
-	}
-	void mouseMove(MouseEvent e)
-	{
-		mm();
-	}
-	void mm()
-	{
-		direction = getMousePos() - lastm;
-		lastm = getMousePos();
-	}
-	Array2D<float> img3;
-	Array2D<Vec2f> tmpEnergy3;
-	Array2D<Vec2f> tmpEnergy;
-
-	void toTmpEnergy()
-	{
-		tmpEnergy = Array2D<Vec2f>(sx, sy);
-		forxy(tmpEnergy)
-		{
-			tmpEnergy(p) = velocity(p) * img(p);
-		}
-	}
-
-	void fromTmpEnergy()
-	{
-		forxy(tmpEnergy)
-		{
-			if(img(p) != 0.0f)
-				velocity(p) = tmpEnergy(p) / img(p);
-		}
-	}
-
 	void draw()
 	{
 		my_console::beginFrame();
 		sw::beginFrame();
-		static bool first = true;
-		first = false;
 
 		wsx = getWindowSize().x;
 		wsy = getWindowSize().y;
@@ -223,7 +182,7 @@ struct SApp : AppBasic {
 			forxy(img)
 			{
 				auto& val = img(p);
-				const float fwidth = .36f;
+				const float fwidth = .56f;
 				val = smoothstep(-fwidth, fwidth, val);
 				val -= .5f;
 				val *= 2.0f;
@@ -255,17 +214,23 @@ struct SApp : AppBasic {
 				ShadeOpts().scale(.5f)
 				);
 		}
+		tex = gpuBlur2_4::run(tex, 1);
 		tex = shade2(tex, bgTex,
 			"float f = fetch1();"
 			"vec3 bgC = fetch3(tex2);"
+			"float fw = fwidth(f);"
+			"float thres = .4;"
+			"f = smoothstep(thres - fw / 2.0, thres + fw / 2.0, f);"
 			"vec3 c = bgC * (1.0 - f);"
 			"_out = c;"
+			, ShadeOpts().scale(::scale)
 			);
-		auto texb = gpuBlur2_4::run_longtail(tex, 3, 1.0f);
+		//auto texb = gpuBlur2_4::run_longtail(tex, 3, 1.0f);
+		auto texb = gpuBlur2_4::run_longtail(tex, 5, 0.5f);
 		tex = shade2(tex, texb,
 			"vec3 c = fetch3();"
 			"vec3 b = fetch3(tex2);"
-			"_out = c + b * .2;");
+			"_out = c + b * .4 * 4.0;");
 		tex = shade2(tex,
 			"vec3 c = fetch3();"
 			/*"c *= exp(-5.0+10.0*mouse.y);"
