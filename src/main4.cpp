@@ -88,29 +88,7 @@ struct SApp : AppBasic {
 
 		mouseX = getMousePos().x / (float)wsx;
 		mouseY = getMousePos().y / (float)wsy;
-		//if(keys['x']) {
-		//	globaldict["ltm"] = sgn(mouseX) * exp(lmap(abs(mouseX), 0.0f, .3f, log(.001f), log(10.0f)));
-		//}
-		/*if(keys['y']) {
-			globaldict["mul"] = mouseY;
-		}
-		if(keys['u']) {
-			globaldict["mul2"] = mouseY;
-		}*/
-		auto surfTensionThres=cfg1::getOpt("surfTensionThres", .5f,
-			[&]() { return keys['6']; },
-			[&]() { return expRange(mouseY, 0.1f, 50000.0f); });
-		auto surfTension=cfg1::getOpt("surfTension", 1.0f,
-			[&]() { return keys['7']; },
-			[&]() { return expRange(mouseY, .0001f, 40000.0f); });
-		auto gravity=cfg1::getOpt("gravity", .1f,//0.0f,//.1f,
-			[&]() { return keys['8']; },
-			[&]() { return expRange(mouseY, .0001f, 40000.0f); });
-		mouseY = getMousePos().y / (float)wsy;
-		auto incompressibilityCoef=cfg1::getOpt("incompressibilityCoef", 1.0f,
-			[&]() { return keys['\\']; },
-			[&]() { return expRange(mouseY, .0001f, 40000.0f); });
-
+		
 		gl::clear(Color(0, 0, 0));
 
 		if(!pause)
@@ -126,15 +104,6 @@ struct SApp : AppBasic {
 
 		if(pause)
 			Sleep(50);
-		//Sleep(5);
-#if 0
-		if(getElapsedFrames()==1){
-			if(!SetPriorityClass(GetCurrentProcess(), IDLE_PRIORITY_CLASS/*BELOW_NORMAL_PRIORITY_CLASS*/))
-			{
-				throw 0;
-			}
-		}
-#endif
 	}
 	void updateBaseNoise()
 	{
